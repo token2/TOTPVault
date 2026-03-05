@@ -32,7 +32,7 @@ A self-hosted TOTP (Time-based One-Time Password) manager built with PHP. Secret
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/youruser/totpvault.git
+git clone https://github.com/token2/TOTPvault.git
 cd totpvault
 ```
 
