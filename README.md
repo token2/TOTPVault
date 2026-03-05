@@ -389,6 +389,12 @@ CREATE TABLE `users` (
 └── .htaccess                 # Rewrites all requests to index.php
 ```
 
+
+## Screenshots
+
+<img width="860" height="363" alt="image" src="https://github.com/user-attachments/assets/df12989a-a4b7-44e7-b351-e6f06cef4c97" />
+
+
 ---
 
 ## License
