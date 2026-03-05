@@ -389,6 +389,8 @@ CREATE TABLE `users` (
 └── .htaccess                 # Rewrites all requests to index.php
 ```
 
+## Demo
+Check out the live demo here: [Live Demo](https://totp.token2.swiss/)
 
 ## Screenshots
 
