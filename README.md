@@ -348,10 +348,8 @@ CREATE TABLE magic_links (
 
 ```
 ├── config/
-│   ├── config.php            # Your local config — not committed
-│   ├── config.example.php    # Template to copy
+│   ├── config.php            # Your local config  
 │   └── .htaccess             # Deny all HTTP access
-├── sessions/                 # PHP session files — not committed
 ├── src/
 │   ├── Auth.php              # Session management, OAuth user lookup
 │   ├── Crypto.php            # AES-256-GCM encrypt / decrypt
