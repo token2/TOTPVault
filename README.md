@@ -393,6 +393,8 @@ CREATE TABLE `users` (
 ## Screenshots
 
 <img width="860" height="363" alt="image" src="https://github.com/user-attachments/assets/df12989a-a4b7-44e7-b351-e6f06cef4c97" />
+<img width="1188" height="660" alt="image" src="https://github.com/user-attachments/assets/ce723c66-81a5-4e94-95a9-0b45c1df3be8" />
+<img width="773" height="802" alt="image" src="https://github.com/user-attachments/assets/fd84bdc0-ebc1-4d9c-a0c5-73a8efa08df8" />
 
 
 ---
