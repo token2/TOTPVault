@@ -50,17 +50,14 @@ mysql -u youruser -p totpvault < schema.sql
 
 ### 3. Configure the application
 
-```bash
-cp config/config.example.php config/config.php
-```
 
 Edit `config/config.php` and fill in all values. See [Configuration](#configuration) below.
 
 ### 4. Set directory permissions
 
 ```bash
-chmod 750 sessions/
 chmod 750 config/
+
 ```
 
 ### 5. Web server
