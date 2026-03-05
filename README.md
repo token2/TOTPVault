@@ -294,52 +294,75 @@ If the invited email does not yet have an account, the share is stored as pendin
 ## Database schema
 
 ```sql
-CREATE TABLE users (
-    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    email           VARCHAR(255) NOT NULL UNIQUE,
-    name            VARCHAR(255),
-    avatar_url      VARCHAR(512),
-    google_id       VARCHAR(128),
-    microsoft_id    VARCHAR(128),
-    github_id       VARCHAR(128),
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
-CREATE TABLE otp_profiles (
-    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id           INT UNSIGNED NOT NULL,
-    name              VARCHAR(255) NOT NULL,
-    issuer            VARCHAR(255),
-    secret_encrypted  TEXT NOT NULL,
-    algorithm         ENUM('SHA1','SHA256','SHA512') DEFAULT 'SHA1',
-    digits            TINYINT DEFAULT 6,
-    period            SMALLINT DEFAULT 30,
-    color             VARCHAR(16) DEFAULT '#6366f1',
-    icon              VARCHAR(64) DEFAULT 'fa-shield-halved',
-    hide_code         TINYINT(1) NOT NULL DEFAULT 0,
-    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+--
+-- Table structure for table `magic_links`
+--
 
-CREATE TABLE profile_shares (
-    id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    profile_id            INT UNSIGNED NOT NULL,
-    shared_by_user_id     INT UNSIGNED NOT NULL,
-    shared_with_email     VARCHAR(255) NOT NULL,
-    shared_with_user_id   INT UNSIGNED,
-    can_edit              TINYINT(1) DEFAULT 0,
-    created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (profile_id) REFERENCES otp_profiles(id) ON DELETE CASCADE
-);
+CREATE TABLE `magic_links` (
+  `id` int(11) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `token_hash` varchar(64) NOT NULL,
+  `used` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `expires_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE magic_links (
-    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    email       VARCHAR(255) NOT NULL,
-    token_hash  VARCHAR(128) NOT NULL,
-    expires_at  DATETIME NOT NULL,
-    used        TINYINT(1) DEFAULT 0,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `otp_profiles`
+--
+
+CREATE TABLE `otp_profiles` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `issuer` varchar(255) DEFAULT '',
+  `secret_encrypted` text NOT NULL COMMENT 'AES-256-GCM encrypted base32 secret',
+  `algorithm` enum('SHA1','SHA256','SHA512') DEFAULT 'SHA1',
+  `digits` tinyint(4) DEFAULT 6 COMMENT '6, 8 or 10',
+  `period` smallint(6) DEFAULT 30 COMMENT 'seconds',
+  `color` varchar(7) DEFAULT '#6366f1',
+  `icon` varchar(50) DEFAULT 'shield',
+  `hide_code` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `profile_shares`
+--
+
+CREATE TABLE `profile_shares` (
+  `id` int(11) NOT NULL,
+  `profile_id` int(11) NOT NULL,
+  `shared_by_user_id` int(11) NOT NULL,
+  `shared_with_email` varchar(255) NOT NULL,
+  `shared_with_user_id` int(11) DEFAULT NULL,
+  `can_edit` tinyint(1) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `users`
+--
+
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `avatar_url` varchar(500) DEFAULT NULL,
+  `google_id` varchar(255) DEFAULT NULL,
+  `microsoft_id` varchar(255) DEFAULT NULL,
+  `github_id` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 ```
 
 ---
