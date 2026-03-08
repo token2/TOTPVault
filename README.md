@@ -228,6 +228,23 @@ The built-in generator creates secrets server-side using `random_bytes()` and Ba
 
 The browser-side QR scanner uses [jsQR](https://github.com/cozmo/jsQR) to decode an `otpauth://totp/` URI from a dropped, uploaded, or clipboard-pasted image — entirely client-side with no image data sent to the server. All parsed fields (secret, issuer, algorithm, digits, period) are populated directly into the form.
 
+### Google Authenticator bulk import
+
+`/tools/import-google-auth` is a standalone import page for migrating from Google Authenticator.
+
+Google Authenticator's export QR codes use the `otpauth-migration://offline?data=...` format, which encodes a Protocol Buffer binary payload containing multiple accounts. This is different from a standard `otpauth://` URI and cannot be decoded by the regular QR scanner.
+
+**How it works:**
+
+1. In Google Authenticator, tap ⋮ → **Transfer accounts** → **Export accounts**, then screenshot the QR code(s)
+2. Drop or paste each screenshot into the import page
+3. jsQR decodes the QR client-side and extracts the `data` parameter
+4. The base64-encoded protobuf is sent to the server, where a hand-rolled PHP decoder parses it without any external libraries
+5. All found accounts are shown in a review table — select which ones to import
+6. Each selected token is saved via the normal `POST /api/profiles` endpoint
+
+The protobuf decoder handles the fixed `MigrationPayload` schema, converting raw secret bytes to Base32 and mapping Google's internal algorithm/digit/type enums to their standard values. HOTP tokens are detected and excluded (not supported). If a QR contains many accounts, Google Authenticator may split the export across multiple QR codes — each can be processed in sequence on the same page before clicking Import.
+
 ---
 
 ## Colours
@@ -368,8 +385,9 @@ CREATE TABLE `users` (
 
 ```
 ├── config/
-│   ├── config.php            # Your local config  
+│   ├── config.php            # Your local config — not committed
 │   └── .htaccess             # Deny all HTTP access
+├── sessions/                 # PHP session files — not committed
 ├── src/
 │   ├── Auth.php              # Session management, OAuth user lookup
 │   ├── Crypto.php            # AES-256-GCM encrypt / decrypt
@@ -383,6 +401,8 @@ CREATE TABLE `users` (
 │   ├── landing.php           # Public marketing / login page
 │   ├── dashboard.php         # Authenticated token manager
 │   └── 404.php
+├── tools/
+│   └── import-google-auth.php  # Google Authenticator migration QR importer
 ├── favicon.png
 ├── index.php                 # Front controller and router
 ├── schema.sql                # Database schema
@@ -397,6 +417,8 @@ Check out the live demo here: [Live Demo](https://totp.token2.swiss/)
 <img width="860" height="363" alt="image" src="https://github.com/user-attachments/assets/df12989a-a4b7-44e7-b351-e6f06cef4c97" />
 <img width="1188" height="660" alt="image" src="https://github.com/user-attachments/assets/ce723c66-81a5-4e94-95a9-0b45c1df3be8" />
 <img width="773" height="802" alt="image" src="https://github.com/user-attachments/assets/fd84bdc0-ebc1-4d9c-a0c5-73a8efa08df8" />
+<img width="958" height="809" alt="image" src="https://github.com/user-attachments/assets/abbf80b3-d22d-4421-afc5-a5746b51a1bc" />
+
 
 
 ---
