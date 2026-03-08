@@ -212,6 +212,19 @@ if ($uri === '/dashboard' && $method === 'GET') {
     view('dashboard', ['user' => $user, 'profiles' => $profiles]);
 }
 
+//Import Tools
+if (preg_match('#^/tools/([\w-]+)$#', $uri, $m)) {
+    $tool = $m[1];
+    $file = BASE_DIR . '/tools/' . $tool . '.php';
+    if (!file_exists($file)) {
+        http_response_code(404);
+        view('404', ['user' => $user]);
+    }
+    require $file;
+    exit;
+}
+
+
 // ── API: OTP ───────────────────────────────────────────────────────────────
 
 if ($uri === '/api/otp' && $method === 'GET') {
