@@ -202,12 +202,18 @@ $FA_SOLID_ICONS = [
       Shared with me
       <span class="sidebar-profile-count" id="count-shared"><?= count(array_filter($profiles, fn($p)=>!$p['is_owner'])) ?></span>
     </button>
-    <div style="margin-top:auto;padding:.5rem .75rem">
+ 
+	<div style="margin-top:auto;padding:.5rem .75rem;display:flex;flex-direction:column;gap:.5rem">
+      <a href="/tools/import-google-auth" class="sidebar-link" style="font-size:.8125rem;color:var(--ink4)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import from Google Auth
+      </a>
       <button class="btn btn-primary w-full" onclick="openAddModal()">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add token
       </button>
     </div>
+	
   </aside>
 
   <main class="main">
