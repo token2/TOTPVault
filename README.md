@@ -14,6 +14,7 @@ A self-hosted TOTP (Time-based One-Time Password) manager built with PHP. Secret
 - **Hide mode** — mask a token's code until clicked; it reveals for 10 seconds then hides itself again
 - **Full RFC 6238 support** — SHA1, SHA256, SHA512 · 6, 8, or 10 digit codes · configurable time periods
 - **Icon & colour tagging** — assign any Font Awesome brand or solid icon and one of 16 accent colours to each token for quick visual identification
+- **Google Authenticator bulk import** - import your Google Authenticator accounts via the otpauth-migration QR images
 
 ---
 
