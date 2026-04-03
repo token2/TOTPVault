@@ -310,6 +310,36 @@ if (preg_match('#^/api/profiles/(\d+)/shares$#', $uri, $m)) {
     }
 }
 
+// ── API: Export profiles as CSV ────────────────────────────────────────
+
+if ($uri === '/api/export-profiles' && $method === 'GET') {
+    try {
+        $profileSvc = new Profile();
+        $rows = $profileSvc->exportForUser($user['id']);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="totp-export-' . date('Y-m-d') . '.csv"');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['profile', 'seed', 'title', 'algorithm', 'digits', 'period']);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $row['profile'],
+                $row['seed'],
+                $row['title'],
+                $row['algorithm'],
+                $row['digits'],
+                $row['period'],
+            ]);
+        }
+        fclose($out);
+        exit;
+    } catch (Exception $e) {
+        jsonResponse(['error' => $e->getMessage()], 500);
+    }
+}
+
 // ── API: Generate secret ───────────────────────────────────────────────────
 
 if ($uri === '/api/generate-secret' && $method === 'GET') {
