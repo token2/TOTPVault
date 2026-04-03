@@ -161,6 +161,39 @@ class Profile {
         ];
     }
 
+    // ── Export ─────────────────────────────────────────────────────────────
+
+    /**
+     * Return profiles the user can edit, with decrypted secrets, for CSV export.
+     * Only profiles where the user is owner OR has can_edit=1 are included.
+     */
+    public function exportForUser(int $userId): array {
+        $stmt = $this->db->prepare(
+            'SELECT p.id, p.name, p.secret_encrypted, p.algorithm, p.digits, p.period,
+                    IF(p.user_id = :uid, 1, 0) AS is_owner,
+                    COALESCE(s.can_edit, IF(p.user_id = :uid2, 1, 0)) AS can_edit
+             FROM otp_profiles p
+             LEFT JOIN profile_shares s ON s.profile_id = p.id AND s.shared_with_user_id = :uid3
+             WHERE (p.user_id = :uid4 OR (s.shared_with_user_id = :uid5 AND s.can_edit = 1))
+             ORDER BY p.id ASC'
+        );
+        $stmt->execute([':uid'=>$userId,':uid2'=>$userId,':uid3'=>$userId,':uid4'=>$userId,':uid5'=>$userId]);
+        $rows = $stmt->fetchAll();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[] = [
+                'profile'   => (int)$row['id'],
+                'seed'      => Crypto::decrypt($row['secret_encrypted']),
+                'title'     => $row['name'],
+                'algorithm' => $row['algorithm'],
+                'digits'    => (int)$row['digits'],
+                'period'    => (int)$row['period'],
+            ];
+        }
+        return $result;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private function canEdit(int $profileId, int $userId): bool {
