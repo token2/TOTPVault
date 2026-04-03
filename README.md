@@ -15,7 +15,7 @@ A self-hosted TOTP (Time-based One-Time Password) manager built with PHP. Secret
 - **Full RFC 6238 support** — SHA1, SHA256, SHA512 · 6, 8, or 10 digit codes · configurable time periods
 - **Icon & colour tagging** — assign any Font Awesome brand or solid icon and one of 16 accent colours to each token for quick visual identification
 - **Google Authenticator bulk import** - import your Google Authenticator accounts via the otpauth-migration QR images
-- ** Export profiles ** — download your TOTP profiles (owned or with edit rights) as a CSV file containing decrypted seeds, compatible with [Molto2 bulk import [feature](https://www.token2.swiss/site/page/molto-2-usb-config-tool)
+- ** Export profiles ** — download your TOTP profiles (owned or with edit rights) as a CSV file containing decrypted seeds, compatible with [Molto2](https://www.token2.ch/shop/product/molto-2-v2-multi-profile-totp-programmable-hardware-token) bulk import [feature](https://www.token2.swiss/site/page/molto-2-usb-config-tool)
 
 ---
 
