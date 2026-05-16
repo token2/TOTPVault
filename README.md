@@ -495,6 +495,15 @@ docker compose up -d --build
 - Verify `DB_USER`, `DB_PASSWORD`, and `DB_NAME` match between the app and db service.
 - The app waits for the db healthcheck before starting (`depends_on: condition: service_healthy`).
 
+**Access denied for user — after changing `.env` passwords**
+- MariaDB only applies `MYSQL_USER`/`MYSQL_PASSWORD` on a **fresh** (empty) data volume. If the volume already exists with different credentials, the new values are ignored.
+- Fix: destroy the volume and restart so MariaDB re-initialises:
+  ```bash
+  docker compose down -v   # ⚠ deletes all database data
+  docker compose up -d --build
+  ```
+
+
 **Schema not imported**
 - Init scripts only run on a **fresh** data volume. If you changed the schema, reset with `docker compose down -v` first.
 - Check MariaDB logs: `docker compose logs db | head -100`
