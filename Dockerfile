@@ -7,9 +7,12 @@ FROM php:8.2-apache-bookworm
 LABEL maintainer="TOTPVault" \
       description="Self-hosted TOTP manager with AES-256-GCM encryption"
 
-# ── 1. Enable Apache modules ────────────────────────────────────────────────
-# mod_rewrite is required for .htaccess URL routing to index.php
-RUN a2enmod rewrite headers
+# ── 1. Enable Apache modules & set global ServerName ────────────────────────
+# mod_rewrite — required for .htaccess URL routing to index.php
+# ServerName  — set globally to suppress the FQDN startup warning in logs
+RUN a2enmod rewrite headers \
+    && echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf \
+    && a2enconf servername
 
 # ── 2. Install PHP extensions ────────────────────────────────────────────────
 # pdo_mysql  — database access via PDO
@@ -20,12 +23,9 @@ RUN docker-php-ext-install pdo pdo_mysql mysqli \
     && php -m | grep -qi openssl \
     && php -m | grep -qi curl
 
-# ── 3. Set Apache DocumentRoot to the project directory ─────────────────────
-# The app expects index.php at the web root, with .htaccess rewriting.
-ENV APACHE_DOCUMENT_ROOT=/var/www/html
-RUN sed -ri "s|/var/www/html|${APACHE_DOCUMENT_ROOT}|g" \
-        /etc/apache2/sites-available/*.conf \
-        /etc/apache2/apache2.conf
+# ── 3. DocumentRoot is /var/www/html (base image default) ───────────────────
+# Our custom 000-default.conf (step 4) sets DocumentRoot, AllowOverride All,
+# ServerName, and the per-directory deny rules — no sed substitution needed.
 
 # ── 4. Copy custom Apache vhost configuration ───────────────────────────────
 # Ensures AllowOverride All so .htaccess files work, and denies direct
