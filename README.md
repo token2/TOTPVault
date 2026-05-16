@@ -422,26 +422,20 @@ A complete Docker setup is included for local or self-hosted deployment. It runs
 git clone https://github.com/token2/TOTPvault.git
 cd TOTPVault
 
-# 2. Create your environment file
+# 2. Create your environment file — defaults work out of the box for local dev
 cp .env.example .env
 
-# 3. Generate a secure encryption key (required)
-php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"
-# Paste the output as ENCRYPTION_KEY in .env
-
-# 4. Edit .env — at minimum fill in:
-#    - ENCRYPTION_KEY  (from step 3)
-#    - DB_PASSWORD     (choose any strong password)
-#    - DB_ROOT_PASSWORD
-#    - MAILERSEND_KEY  (if you want magic-link emails)
-#    - OAuth client IDs/secrets for any providers you use
-
-# 5. Start everything
+# 3. Start everything
 docker compose up -d --build
 
-# 6. Open the app
+# 4. Open the app
 open http://localhost:8080
 ```
+
+> **Production deployment:** Before going live, open `.env` and replace the three values marked `⚠ CHANGE ME`:
+> - `ENCRYPTION_KEY` — generate a fresh one: `php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"`
+> - `DB_PASSWORD` — use a strong unique password
+> - `DB_ROOT_PASSWORD` — use a strong unique password
 
 ### Makefile shortcuts
 
