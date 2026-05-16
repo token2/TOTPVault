@@ -1,5 +1,12 @@
 <?php
 $pageTitle = 'TOTPVault — Secure TOTP Manager';
+$cfg       = require __DIR__ . '/../config/config.php';
+$oauth     = $cfg['oauth'] ?? [];
+// A provider is "enabled" only when its client_id is a non-empty string
+$googleOn    = !empty($oauth['google']['client_id']);
+$microsoftOn = !empty($oauth['microsoft']['client_id']);
+$githubOn    = !empty($oauth['github']['client_id']);
+$anyOAuth    = $googleOn || $microsoftOn || $githubOn;
 require __DIR__ . '/layout.php';
 ?>
 
