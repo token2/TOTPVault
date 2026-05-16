@@ -411,6 +411,118 @@ CREATE TABLE `users` (
 └── .htaccess                 # Rewrites all requests to index.php
 ```
 
+## Docker Compose Deployment
+
+A complete Docker setup is included for local or self-hosted deployment. It runs the PHP app under Apache and MariaDB in two containers behind a private bridge network.
+
+### Quick start
+
+```bash
+# 1. Clone and enter the project
+git clone https://github.com/token2/TOTPvault.git
+cd TOTPVault
+
+# 2. Create your environment file
+cp .env.example .env
+
+# 3. Generate a secure encryption key (required)
+php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"
+# Paste the output as ENCRYPTION_KEY in .env
+
+# 4. Edit .env — at minimum fill in:
+#    - ENCRYPTION_KEY  (from step 3)
+#    - DB_PASSWORD     (choose any strong password)
+#    - DB_ROOT_PASSWORD
+#    - MAILERSEND_KEY  (if you want magic-link emails)
+#    - OAuth client IDs/secrets for any providers you use
+
+# 5. Start everything
+docker compose up -d --build
+
+# 6. Open the app
+open http://localhost:8080
+```
+
+### Makefile shortcuts
+
+| Command | Description |
+|---|---|
+| `make up` | Build and start all services |
+| `make down` | Stop all services |
+| `make logs` | Follow application logs |
+| `make rebuild` | Full rebuild (no cache) and restart |
+| `make shell` | Bash shell inside the app container |
+| `make db-shell` | MariaDB shell inside the database container |
+
+### Common commands
+
+```bash
+# View logs
+docker compose logs -f app
+
+# Stop everything
+docker compose down
+
+# Reset database (destroys all data!)
+docker compose down -v
+```
+
+### Persistent data
+
+| Volume | Purpose |
+|---|---|
+| `totpvault-db-data` | MariaDB database files — survives container rebuilds |
+| `totpvault-sessions` | PHP session files — keeps users logged in across restarts |
+
+To list volumes: `docker volume ls | grep totpvault`
+
+### How configuration works
+
+- `config/config.docker.php` is mounted as `config/config.php` inside the container (read-only).
+- All settings are read from environment variables defined in `.env`.
+- OAuth redirect URIs are derived automatically from `APP_URL`.
+- The original `config/config.php` on the host is **not modified** and remains usable for non-Docker deployments.
+- **Never commit `.env` or real secrets to Git.** The `.gitignore` excludes `.env` by default.
+
+### Database initialisation
+
+On first startup, MariaDB automatically runs `docker/init-db.sql` to create all tables. This happens only when the data volume is empty. To re-initialise:
+
+```bash
+docker compose down -v      # removes the data volume
+docker compose up -d --build
+```
+
+### Troubleshooting
+
+**App cannot connect to database**
+- Ensure `DB_HOST=db` in `.env` (must match the Compose service name).
+- Check that the `db` container is healthy: `docker compose ps`
+- Verify `DB_USER`, `DB_PASSWORD`, and `DB_NAME` match between the app and db service.
+- The app waits for the db healthcheck before starting (`depends_on: condition: service_healthy`).
+
+**Schema not imported**
+- Init scripts only run on a **fresh** data volume. If you changed the schema, reset with `docker compose down -v` first.
+- Check MariaDB logs: `docker compose logs db | head -100`
+
+**.htaccess rewrite not working**
+- Verify `mod_rewrite` is enabled: `docker compose exec app apache2ctl -M | grep rewrite`
+- The Dockerfile enables it automatically. If you see 404 errors for routes like `/dashboard`, check that `AllowOverride All` is set in `docker/000-default.conf`.
+
+**Missing encryption key**
+- `ENCRYPTION_KEY` must be set in `.env`. Generate it with:
+  ```
+  php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"
+  ```
+- If the key changes after tokens have been stored, existing encrypted secrets become **permanently unreadable**.
+
+**MailerSend not configured**
+- Magic-link login requires a valid `MAILERSEND_KEY`. Without it, email sending will silently fail.
+- Sign up at [mailersend.com](https://www.mailersend.com), verify a domain, and create an API token.
+- Set `MAIL_FROM_EMAIL` to an address on your verified domain.
+
+---
+
 ## Demo
 Check out the live demo here: [Live Demo](https://totp.token2.swiss/)
 

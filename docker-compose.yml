@@ -1,0 +1,95 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TOTPVault — Docker Compose
+# Usage:
+#   cp .env.example .env   # then fill in real values
+#   docker compose up -d --build
+#   open http://localhost:8080
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PHP + Apache application ───────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: totpvault-app
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      # All env vars are read by config/config.docker.php inside the container.
+      - APP_URL=${APP_URL:-http://localhost:8080}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-totpvault}
+      - DB_USER=${DB_USER:-totpvault}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      - SESSION_COOKIE_NAME=${SESSION_COOKIE_NAME:-totpvault_session}
+      - SESSION_LIFETIME=${SESSION_LIFETIME:-2592000}
+      - MAILERSEND_KEY=${MAILERSEND_KEY:-}
+      - MAIL_FROM_EMAIL=${MAIL_FROM_EMAIL:-noreply@localhost}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-TOTPVault}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+    volumes:
+      # Mount the Docker-specific config as config/config.php inside the container.
+      # This keeps the original config/config.php on the host untouched.
+      - ./config/config.docker.php:/var/www/html/config/config.php:ro
+      # Persist PHP sessions across container restarts.
+      - totpvault-sessions:/var/www/html/sessions
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - totpvault-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── MariaDB database ──────────────────────────────────────────────────────
+  db:
+    image: mariadb:10.11
+    container_name: totpvault-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${DB_NAME:-totpvault}
+      MYSQL_USER: ${DB_USER:-totpvault}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      # Persist database data across container restarts and rebuilds.
+      - totpvault-db-data:/var/lib/mysql
+      # Initialise the schema on first startup only.
+      # Files in /docker-entrypoint-initdb.d/ run once when the data volume is empty.
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    # The database port is NOT exposed to the host by default for security.
+    # Uncomment the following lines if you need direct access for debugging:
+    # ports:
+    #   - "3306:3306"
+    networks:
+      - totpvault-net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  totpvault-db-data:
+    driver: local
+  totpvault-sessions:
+    driver: local
+
+networks:
+  totpvault-net:
+    driver: bridge
