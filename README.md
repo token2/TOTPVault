@@ -338,7 +338,13 @@ Core tables:
 ```
 ├── config/
 │   ├── config.php            # Your local config — not committed
+│   ├── config.docker.php     # Docker runtime config from environment variables
 │   └── .htaccess             # Deny all HTTP access
+├── docker/
+│   ├── 000-default.conf      # Apache vhost for the app container
+│   ├── init-db.sql           # Docker database initialization schema
+│   └── keycloak/
+│       └── totpvault-realm.json  # Local Keycloak test realm import
 ├── sessions/                 # PHP session files — not committed
 ├── src/
 │   ├── Auth.php              # Session management, OAuth user lookup
@@ -355,6 +361,10 @@ Core tables:
 │   └── 404.php
 ├── tools/
 │   └── import-google-auth.php  # Google Authenticator migration QR importer
+├── Dockerfile                # PHP/Apache application image
+├── docker-compose.yml        # App and MariaDB services
+├── docker-compose.keycloak.yml  # Optional local Keycloak test override
+├── Makefile                  # Docker Compose shortcuts
 ├── favicon.png
 ├── index.php                 # Front controller and router
 ├── schema.sql                # Database schema
@@ -419,6 +429,7 @@ docker compose down -v
 |---|---|
 | `totpvault-db-data` | MariaDB database files — survives container rebuilds |
 | `totpvault-sessions` | PHP session files — keeps users logged in across restarts |
+| `totpvault-keycloak-data` | Optional local Keycloak test server data when the `keycloak` profile is enabled |
 
 To list volumes: `docker volume ls | grep totpvault`
 
