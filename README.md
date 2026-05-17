@@ -478,6 +478,30 @@ To list volumes: `docker volume ls | grep totpvault`
 - The original `config/config.php` on the host is **not modified** and remains usable for non-Docker deployments.
 - **Never commit `.env` or real secrets to Git.** The `.gitignore` excludes `.env` by default.
 
+### OAuth provider setup
+
+Google, Microsoft, and GitHub sign-in require OAuth application credentials from each provider. For local Docker deployment, keep:
+
+```env
+APP_URL=http://localhost:8080
+```
+
+Then register these callback URLs with the providers you want to enable:
+
+| Provider | Setup page | Local callback URL | `.env` values |
+|---|---|---|---|
+| Google | [Google Cloud Console — Credentials](https://console.cloud.google.com/apis/credentials) | `http://localhost:8080/auth/callback/google` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| Microsoft | [Microsoft Entra — App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) | `http://localhost:8080/auth/callback/microsoft` | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+| GitHub | [GitHub Developer Settings — OAuth Apps](https://github.com/settings/developers) | `http://localhost:8080/auth/callback/github` | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
+
+After updating `.env`, rebuild/restart the app:
+
+```bash
+docker compose up -d --build
+```
+
+For production, replace `http://localhost:8080` with your public `APP_URL` and register matching HTTPS callback URLs, for example `https://yourdomain.com/auth/callback/google`.
+
 ### Database initialisation
 
 On first startup, MariaDB automatically runs `docker/init-db.sql` to create all tables. This happens only when the data volume is empty. To re-initialise:
