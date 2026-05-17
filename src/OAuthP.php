@@ -47,8 +47,15 @@ public function __construct(string $providerName) {
         }
         unset($_SESSION['oauth_state']);
 
-        $token    = $this->exchangeCode($code);
-        $userInfo = $this->fetchUserInfo($token['access_token']);
+        $token = $this->exchangeCode($code);
+        try {
+            $userInfo = $this->fetchUserInfo($token['access_token']);
+        } catch (RuntimeException $e) {
+            if (empty($token['id_token'])) {
+                throw $e;
+            }
+            $userInfo = $this->decodeJwtPayload($token['id_token']);
+        }
         return $this->normalizeUser($userInfo);
     }
 
@@ -58,20 +65,23 @@ public function __construct(string $providerName) {
         }
 
         $baseUrl = rtrim($this->provider['base_url'] ?? '', '/');
+        $internalBaseUrl = rtrim($this->provider['internal_base_url'] ?? '', '/');
+        $discoveryBaseUrl = $internalBaseUrl !== '' ? $internalBaseUrl : $baseUrl;
         $realm   = trim($this->provider['realm'] ?? '');
         if ($baseUrl === '' || $realm === '') {
             return;
         }
 
-        $discoveryUrl = "{$baseUrl}/realms/" . rawurlencode($realm) . '/.well-known/openid-configuration';
+        $encodedRealm = rawurlencode($realm);
+        $discoveryUrl = "{$discoveryBaseUrl}/realms/{$encodedRealm}/.well-known/openid-configuration";
         $response = $this->httpGet($discoveryUrl, ['Accept: application/json']);
         $discovery = json_decode($response, true);
         if (!is_array($discovery)) {
             throw new RuntimeException('Failed to read Keycloak OpenID Connect discovery document.');
         }
 
+        $this->provider['auth_url'] = "{$baseUrl}/realms/{$encodedRealm}/protocol/openid-connect/auth";
         foreach ([
-            'auth_url'     => 'authorization_endpoint',
             'token_url'    => 'token_endpoint',
             'userinfo_url' => 'userinfo_endpoint',
         ] as $configKey => $discoveryKey) {
@@ -218,5 +228,22 @@ private function fetchUserInfo(string $accessToken): array {
             'ignore_errors' => true,
         ]]);
         return file_get_contents($url, false, $ctx) ?: throw new RuntimeException("HTTP GET to {$url} failed.");
+    }
+
+    private function decodeJwtPayload(string $jwt): array {
+        $parts = explode('.', $jwt);
+        if (count($parts) < 2) {
+            throw new RuntimeException('Invalid OIDC ID token.');
+        }
+
+        $payload = strtr($parts[1], '-_', '+/');
+        $payload .= str_repeat('=', (4 - strlen($payload) % 4) % 4);
+        $json = base64_decode($payload, true);
+        $data = $json === false ? null : json_decode($json, true);
+        if (!is_array($data)) {
+            throw new RuntimeException('Failed to decode OIDC ID token.');
+        }
+
+        return $data;
     }
 }

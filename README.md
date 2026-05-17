@@ -449,6 +449,21 @@ Then register these callback URLs with the providers you want to enable:
 
 For Keycloak, create an OpenID Connect client in your realm, set the valid redirect URI to the callback URL above, and set `KEYCLOAK_BASE_URL` to the Keycloak server root, for example `https://sso.example.com`. TOTPVault uses `KEYCLOAK_BASE_URL` and `KEYCLOAK_REALM` to read the realm's `/.well-known/openid-configuration` discovery document.
 
+The Docker Compose setup includes a local Keycloak test server on `http://localhost:8081`. On first startup, it imports `docker/keycloak/totpvault-realm.json` with:
+
+| Setting | Value |
+|---|---|
+| Admin console | `http://localhost:8081` |
+| Admin username | `admin` |
+| Admin password | `admin` |
+| Realm | `totpvault` |
+| Client ID | `totpvault` |
+| Client secret | `totpvault-dev-secret` |
+| Test user | `totpuser` |
+| Test password | `totpuser` |
+
+These defaults are for local testing only. For production, use your own Keycloak deployment, change the client secret, set `KEYCLOAK_BASE_URL` to the public Keycloak URL, and set `KEYCLOAK_INTERNAL_BASE_URL` only if the PHP container needs a different internal network URL for token and userinfo calls.
+
 After updating `.env`, rebuild/restart the app:
 
 ```bash

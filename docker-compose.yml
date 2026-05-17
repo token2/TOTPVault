@@ -37,11 +37,12 @@ services:
       - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET:-}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
-      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-}
-      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
-      - KEYCLOAK_BASE_URL=${KEYCLOAK_BASE_URL:-}
-      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-}
-      - KEYCLOAK_REDIRECT_URI=${KEYCLOAK_REDIRECT_URI:-}
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-totpvault}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-totpvault-dev-secret}
+      - KEYCLOAK_BASE_URL=${KEYCLOAK_BASE_URL:-http://localhost:8081}
+      - KEYCLOAK_INTERNAL_BASE_URL=${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8080}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-totpvault}
+      - KEYCLOAK_REDIRECT_URI=${KEYCLOAK_REDIRECT_URI:-http://localhost:8080/auth/callback/keycloak}
       - KEYCLOAK_SCOPE=${KEYCLOAK_SCOPE:-openid email profile}
     volumes:
       # Mount the Docker-specific config as config/config.php inside the container.
@@ -52,6 +53,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      keycloak:
+        condition: service_healthy
     networks:
       - totpvault-net
     healthcheck:
@@ -60,6 +63,36 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # ── Keycloak identity provider for local OIDC testing ─────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    container_name: totpvault-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_URL: ${KEYCLOAK_BASE_URL:-http://localhost:8081}
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./docker/keycloak/totpvault-realm.json:/opt/keycloak/data/import/totpvault-realm.json:ro
+      - totpvault-keycloak-data:/opt/keycloak/data
+    networks:
+      - totpvault-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/bin/bash -ec \"exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /realms/totpvault/.well-known/openid-configuration HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q 'HTTP/1.1 200' <&3\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   # ── MariaDB database ──────────────────────────────────────────────────────
   db:
@@ -94,6 +127,8 @@ volumes:
   totpvault-db-data:
     driver: local
   totpvault-sessions:
+    driver: local
+  totpvault-keycloak-data:
     driver: local
 
 networks:

@@ -84,6 +84,7 @@ return [
             'client_id'     => getenv('KEYCLOAK_CLIENT_ID')     ?: '',
             'client_secret' => getenv('KEYCLOAK_CLIENT_SECRET') ?: '',
             'base_url'      => rtrim(getenv('KEYCLOAK_BASE_URL') ?: '', '/'),
+            'internal_base_url' => rtrim(getenv('KEYCLOAK_INTERNAL_BASE_URL') ?: '', '/'),
             'realm'         => getenv('KEYCLOAK_REALM') ?: '',
             'redirect_uri'  => getenv('KEYCLOAK_REDIRECT_URI') ?: ($appUrl . '/auth/callback/keycloak'),
             'scope'         => getenv('KEYCLOAK_SCOPE') ?: 'openid email profile',
