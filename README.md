@@ -422,7 +422,7 @@ A complete Docker setup is included for local or self-hosted deployment. It runs
 git clone https://github.com/token2/TOTPvault.git
 cd TOTPVault
 
-# 2. Create your environment file — defaults work out of the box for local dev
+# 2. Create your environment file — then configure a login method
 cp .env.example .env
 
 # 3. Start everything
@@ -436,6 +436,8 @@ open http://localhost:8080
 > - `ENCRYPTION_KEY` — generate a fresh one: `php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"`
 > - `DB_PASSWORD` — use a strong unique password
 > - `DB_ROOT_PASSWORD` — use a strong unique password
+
+To sign in, configure at least one login method in `.env`: MailerSend for magic links, or Google, Microsoft, or GitHub OAuth credentials.
 
 ### Makefile shortcuts
 

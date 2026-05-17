@@ -8,7 +8,12 @@ docker-compose.override.yml
 Makefile
 .dockerignore
 .env
+.env.*
 .env.example
+
+# Local configuration may contain production secrets. Docker Compose mounts
+# config/config.docker.php as config/config.php at runtime instead.
+config/config.php
 
 # IDE
 .idea/
