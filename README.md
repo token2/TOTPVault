@@ -55,14 +55,22 @@ mysql -u youruser -p totpvault < schema.sql
 
 Edit `config/config.php` and fill in all values. See [Configuration](#configuration) below.
 
-### 4. Set directory permissions
+### 4. Existing installations only: apply migrations
+
+Fresh installs that import `schema.sql` already include every required table. Existing installations should apply any SQL files in `migrations/` that have not been run yet:
+
+```bash
+mysql -u youruser -p totpvault < migrations/001_add_oauth_identities.sql
+```
+
+### 5. Set directory permissions
 
 ```bash
 chmod 750 config/
 
 ```
 
-### 5. Web server
+### 6. Web server
 
 Point your virtual host document root to the project directory. All requests are routed through `index.php` via `.htaccess`. The `config/`, `src/`, `sessions/`, and `templates/` directories are individually protected by `.htaccess` rules that deny direct HTTP access.
 
@@ -346,6 +354,8 @@ Core tables:
 │   └── keycloak/
 │       └── totpvault-realm.json  # Local Keycloak test realm import
 ├── sessions/                 # PHP session files — not committed
+├── migrations/
+│   └── 001_add_oauth_identities.sql  # Upgrade existing installs for generic OAuth identities
 ├── src/
 │   ├── Auth.php              # Session management, OAuth user lookup
 │   ├── Crypto.php            # AES-256-GCM encrypt / decrypt
