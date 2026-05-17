@@ -12,7 +12,7 @@ return [
     ],
     'encryption_key' => getenv('ENCRYPTION_KEY') ?: 'ThisIsA32ByteKeyForLocalTesting!', //Change this!
     'app_name'   => 'TOTPVault',
-    'app_url' => getenv('APP_URL') ?: 'https://totp.token2.swiss',
+    'app_url' => rtrim(getenv('APP_URL') ?: 'https://totp.token2.swiss', '/'),
     'app_env'    => getenv('APP_ENV') ?: 'production',
 	'mail' => [
 		'from_email'   => getenv('MAIL_FROM')        ?: 'noreply@totp.token2.swiss',
@@ -46,6 +46,14 @@ return [
             'token_url'     => 'https://github.com/login/oauth/access_token',
             'userinfo_url'  => 'https://api.github.com/user',
             'scope'         => 'read:user user:email',
+        ],
+        'keycloak' => [
+            'client_id'     => getenv('KEYCLOAK_CLIENT_ID')     ?: '',
+            'client_secret' => getenv('KEYCLOAK_CLIENT_SECRET') ?: '',
+            'base_url'      => rtrim(getenv('KEYCLOAK_BASE_URL') ?: '', '/'),
+            'realm'         => getenv('KEYCLOAK_REALM') ?: '',
+            'redirect_uri'  => getenv('KEYCLOAK_REDIRECT_URI') ?: (rtrim(getenv('APP_URL') ?: 'https://totp.token2.swiss', '/') . '/auth/callback/keycloak'),
+            'scope'         => getenv('KEYCLOAK_SCOPE') ?: 'openid email profile',
         ],
     ],
     'session' => [
