@@ -449,7 +449,13 @@ Then register these callback URLs with the providers you want to enable:
 
 For Keycloak, create an OpenID Connect client in your realm, set the valid redirect URI to the callback URL above, and set `KEYCLOAK_BASE_URL` to the Keycloak server root, for example `https://sso.example.com`. TOTPVault uses `KEYCLOAK_BASE_URL` and `KEYCLOAK_REALM` to read the realm's `/.well-known/openid-configuration` discovery document.
 
-The Docker Compose setup includes a local Keycloak test server on `http://localhost:8081`. On first startup, it imports `docker/keycloak/totpvault-realm.json` with:
+The Docker Compose setup includes an optional local Keycloak test server on `http://localhost:8081`. To enable it for local testing, include the Keycloak override file and start Compose with the `keycloak` profile:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.keycloak.yml --profile keycloak up -d --build
+```
+
+The override file supplies local `KEYCLOAK_*` values to the app. On first startup, Keycloak imports `docker/keycloak/totpvault-realm.json` with:
 
 | Setting | Value |
 |---|---|
