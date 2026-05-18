@@ -1,0 +1,13 @@
+services:
+  app:
+    environment:
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID:-totpvault}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-totpvault-dev-secret}
+      - KEYCLOAK_BASE_URL=${KEYCLOAK_BASE_URL:-http://localhost:8081}
+      - KEYCLOAK_INTERNAL_BASE_URL=${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8080}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-totpvault}
+      - KEYCLOAK_REDIRECT_URI=${KEYCLOAK_REDIRECT_URI:-http://localhost:8080/auth/callback/keycloak}
+      - KEYCLOAK_SCOPE=${KEYCLOAK_SCOPE:-openid email profile}
+    depends_on:
+      keycloak:
+        condition: service_healthy

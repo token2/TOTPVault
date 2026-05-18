@@ -1,0 +1,62 @@
+{
+  "realm": "totpvault",
+  "enabled": true,
+  "displayName": "TOTPVault",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "clients": [
+    {
+      "clientId": "totpvault",
+      "name": "TOTPVault Local",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "secret": "totpvault-dev-secret",
+      "redirectUris": [
+        "http://localhost:8080/auth/callback/keycloak"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8080/*"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "totpuser",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "TOTP",
+      "lastName": "User",
+      "email": "totpuser@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "totpuser",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

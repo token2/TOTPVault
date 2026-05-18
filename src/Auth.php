@@ -59,50 +59,162 @@ class Auth {
     // ── User upsert ────────────────────────────────────────────────────────
 
     public function findOrCreateUser(array $data): array {
-        // $data: email, name, avatar_url, provider (google|microsoft|github), provider_id
-        $providerCol = $data['provider'] . '_id';
+        // $data: email, name, avatar_url, provider, provider_id
+        $provider   = $this->normalizeProviderName($data['provider'] ?? '');
+        $providerId = (string)($data['provider_id'] ?? '');
+        $email      = strtolower(trim((string)($data['email'] ?? '')));
 
-        // 1. Try by provider_id
-        $stmt = $this->db->prepare("SELECT * FROM users WHERE {$providerCol} = ?");
-        $stmt->execute([$data['provider_id']]);
-        $user = $stmt->fetch();
-
-        // 2. Try by email (links accounts with same email)
-        if (!$user) {
-            $stmt = $this->db->prepare('SELECT * FROM users WHERE email = ?');
-            $stmt->execute([$data['email']]);
-            $user = $stmt->fetch();
+        if ($providerId === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new RuntimeException('OAuth provider returned incomplete user information.');
         }
 
-        if ($user) {
-            // Update provider id + refresh name/avatar
-            $stmt = $this->db->prepare(
-                "UPDATE users SET {$providerCol} = ?, name = COALESCE(?, name),
-                 avatar_url = COALESCE(?, avatar_url), updated_at = NOW()
-                 WHERE id = ?"
-            );
-            $stmt->execute([$data['provider_id'], $data['name'], $data['avatar_url'], $user['id']]);
-            $user[$providerCol] = $data['provider_id'];
-            return $user;
+        $this->db->beginTransaction();
+        try {
+            $user = $this->findUserByOAuthIdentity($provider, $providerId)
+                ?? $this->findUserByLegacyProviderColumn($provider, $providerId)
+                ?? $this->findByEmail($email);
+
+            if ($user) {
+                $stmt = $this->db->prepare(
+                    'UPDATE users SET name = COALESCE(?, name),
+                     avatar_url = COALESCE(?, avatar_url), updated_at = NOW()
+                     WHERE id = ?'
+                );
+                $stmt->execute([$data['name'] ?? null, $data['avatar_url'] ?? null, $user['id']]);
+                $userId = (int)$user['id'];
+            } else {
+                $stmt = $this->db->prepare(
+                    'INSERT INTO users (email, name, avatar_url) VALUES (?, ?, ?)'
+                );
+                $stmt->execute([$email, $data['name'] ?? null, $data['avatar_url'] ?? null]);
+                $userId = (int)$this->db->lastInsertId();
+                $this->resolvePendingShares($email, $userId);
+            }
+
+            $this->upsertOAuthIdentity($userId, $provider, $providerId);
+            $this->updateLegacyProviderColumn($userId, $provider, $providerId);
+
+            $this->db->commit();
+            $savedUser = $this->findById($userId);
+            if (!$savedUser) {
+                throw new RuntimeException('Failed to load authenticated user.');
+            }
+            return $savedUser;
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
-
-        // Create new user
-        $stmt = $this->db->prepare(
-            "INSERT INTO users (email, name, avatar_url, {$providerCol}) VALUES (?, ?, ?, ?)"
-        );
-        $stmt->execute([$data['email'], $data['name'], $data['avatar_url'], $data['provider_id']]);
-        $newId = (int)$this->db->lastInsertId();
-
-        // Resolve pending shares
-        $this->resolvePendingShares($data['email'], $newId);
-
-        return $this->findById($newId);
     }
 
     public function findById(int $id): ?array {
         $stmt = $this->db->prepare('SELECT * FROM users WHERE id = ?');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
+    }
+
+    private function findByEmail(string $email): ?array {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE email = ?');
+        $stmt->execute([$email]);
+        return $stmt->fetch() ?: null;
+    }
+
+    private function findUserByOAuthIdentity(string $provider, string $providerId): ?array {
+        if (!$this->tableExists('oauth_identities')) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT u.* FROM users u
+             INNER JOIN oauth_identities oi ON oi.user_id = u.id
+             WHERE oi.provider = ? AND oi.provider_id = ?
+             LIMIT 1'
+        );
+        $stmt->execute([$provider, $providerId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    private function findUserByLegacyProviderColumn(string $provider, string $providerId): ?array {
+        $column = $this->legacyProviderColumn($provider);
+        if ($column === null) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE {$column} = ? LIMIT 1");
+        $stmt->execute([$providerId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    private function upsertOAuthIdentity(int $userId, string $provider, string $providerId): void {
+        if (!$this->tableExists('oauth_identities')) {
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO oauth_identities (user_id, provider, provider_id)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), updated_at = NOW()'
+        );
+        $stmt->execute([$userId, $provider, $providerId]);
+    }
+
+    private function updateLegacyProviderColumn(int $userId, string $provider, string $providerId): void {
+        $column = $this->legacyProviderColumn($provider);
+        if ($column === null) {
+            return;
+        }
+
+        $stmt = $this->db->prepare("UPDATE users SET {$column} = ? WHERE id = ?");
+        $stmt->execute([$providerId, $userId]);
+    }
+
+    private function normalizeProviderName(string $provider): string {
+        $provider = strtolower(trim($provider));
+        if (!preg_match('/^[a-z0-9_-]{1,64}$/', $provider)) {
+            throw new RuntimeException('Invalid OAuth provider name.');
+        }
+        return $provider;
+    }
+
+    private function legacyProviderColumn(string $provider): ?string {
+        $legacyColumns = [
+            'google'    => 'google_id',
+            'microsoft' => 'microsoft_id',
+            'github'    => 'github_id',
+        ];
+        $column = $legacyColumns[$provider] ?? null;
+        if ($column === null || !$this->columnExists('users', $column)) {
+            return null;
+        }
+        return $column;
+    }
+
+    private function tableExists(string $table): bool {
+        static $cache = [];
+        if (!array_key_exists($table, $cache)) {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+            );
+            $stmt->execute([$table]);
+            $cache[$table] = (int)$stmt->fetchColumn() > 0;
+        }
+        return $cache[$table];
+    }
+
+    private function columnExists(string $table, string $column): bool {
+        static $cache = [];
+        $key = "{$table}.{$column}";
+        if (!array_key_exists($key, $cache)) {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+            );
+            $stmt->execute([$table, $column]);
+            $cache[$key] = (int)$stmt->fetchColumn() > 0;
+        }
+        return $cache[$key];
     }
 
     private function resolvePendingShares(string $email, int $userId): void {

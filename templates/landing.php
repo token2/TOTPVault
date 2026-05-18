@@ -6,7 +6,10 @@ $oauth     = $cfg['oauth'] ?? [];
 $googleOn    = !empty($oauth['google']['client_id']);
 $microsoftOn = !empty($oauth['microsoft']['client_id']);
 $githubOn    = !empty($oauth['github']['client_id']);
-$anyOAuth    = $googleOn || $microsoftOn || $githubOn;
+$keycloakOn  = !empty($oauth['keycloak']['client_id'])
+    && !empty($oauth['keycloak']['base_url'])
+    && !empty($oauth['keycloak']['realm']);
+$anyOAuth    = $googleOn || $microsoftOn || $githubOn || $keycloakOn;
 require __DIR__ . '/layout.php';
 ?>
 
@@ -243,7 +246,7 @@ require __DIR__ . '/layout.php';
   </div>
   <h1>TOTP codes without <span>exposing secrets</span></h1>
   <p class="hero-sub">
-    TOTPVault generates your one-time passwords on the server — your secret keys never reach the browser. 
+    TOTPVault generates your one-time passwords on the server — your secret keys never reach the browser.
     Supports SHA1, SHA256, & SHA512. Share OTP codes with teammates without exposing secrets.
   </p>
   <div class="hero-ctas">
@@ -371,6 +374,22 @@ require __DIR__ . '/layout.php';
         </svg>
         Continue with GitHub
       <?php if ($githubOn): ?>
+      </a>
+      <?php else: ?>
+      </span>
+      <?php endif; ?>
+
+      <?php if ($keycloakOn): ?>
+      <a href="/auth/login/keycloak" class="provider-btn" rel="noopener noreferrer">
+      <?php else: ?>
+      <span class="provider-btn is-disabled" title="Set KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET, KEYCLOAK_BASE_URL, and KEYCLOAK_REALM in .env to enable Keycloak sign-in">
+      <?php endif; ?>
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2 4 5.5v6.2c0 4.5 3.4 8.7 8 10.3 4.6-1.6 8-5.8 8-10.3V5.5L12 2z" fill="#4f46e5"/>
+          <path d="M8.5 12.3 11 14.8l4.8-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Continue with Keycloak
+      <?php if ($keycloakOn): ?>
       </a>
       <?php else: ?>
       </span>

@@ -12,9 +12,16 @@ public function __construct(string $providerName) {
     }
     $this->providerName = $providerName;
     $this->provider     = $cfg['oauth'][$providerName];
+    $this->configureDiscoveredProvider();
 }
 
     public function getAuthUrl(): string {
+        foreach (['auth_url', 'client_id', 'redirect_uri', 'scope'] as $requiredKey) {
+            if (empty($this->provider[$requiredKey])) {
+                throw new RuntimeException("OAuth provider is missing required setting: {$requiredKey}");
+            }
+        }
+
         $state = bin2hex(random_bytes(16));
         $_SESSION['oauth_state']    = $state;
         $_SESSION['oauth_provider'] = $this->providerName;
@@ -40,12 +47,57 @@ public function __construct(string $providerName) {
         }
         unset($_SESSION['oauth_state']);
 
-        $token    = $this->exchangeCode($code);
-        $userInfo = $this->fetchUserInfo($token['access_token']);
+        $token = $this->exchangeCode($code);
+        try {
+            $userInfo = $this->fetchUserInfo($token['access_token']);
+        } catch (RuntimeException $e) {
+            if (empty($token['id_token'])) {
+                throw $e;
+            }
+            $userInfo = $this->decodeJwtPayload($token['id_token']);
+        }
         return $this->normalizeUser($userInfo);
     }
 
+    private function configureDiscoveredProvider(): void {
+        if ($this->providerName !== 'keycloak') {
+            return;
+        }
+
+        $baseUrl = rtrim($this->provider['base_url'] ?? '', '/');
+        $internalBaseUrl = rtrim($this->provider['internal_base_url'] ?? '', '/');
+        $discoveryBaseUrl = $internalBaseUrl !== '' ? $internalBaseUrl : $baseUrl;
+        $realm   = trim($this->provider['realm'] ?? '');
+        if ($baseUrl === '' || $realm === '') {
+            return;
+        }
+
+        $encodedRealm = rawurlencode($realm);
+        $discoveryUrl = "{$discoveryBaseUrl}/realms/{$encodedRealm}/.well-known/openid-configuration";
+        $response = $this->httpGet($discoveryUrl, ['Accept: application/json']);
+        $discovery = json_decode($response, true);
+        if (!is_array($discovery)) {
+            throw new RuntimeException('Failed to read Keycloak OpenID Connect discovery document.');
+        }
+
+        $this->provider['auth_url'] = "{$baseUrl}/realms/{$encodedRealm}/protocol/openid-connect/auth";
+        foreach ([
+            'token_url'    => 'token_endpoint',
+            'userinfo_url' => 'userinfo_endpoint',
+        ] as $configKey => $discoveryKey) {
+            if (empty($this->provider[$configKey]) && !empty($discovery[$discoveryKey])) {
+                $this->provider[$configKey] = $discovery[$discoveryKey];
+            }
+        }
+    }
+
     private function exchangeCode(string $code): array {
+        foreach (['token_url', 'client_id', 'redirect_uri'] as $requiredKey) {
+            if (empty($this->provider[$requiredKey])) {
+                throw new RuntimeException("OAuth provider is missing required setting: {$requiredKey}");
+            }
+        }
+
         $body = [
             'client_id'     => $this->provider['client_id'],
             'client_secret' => $this->provider['client_secret'],
@@ -68,6 +120,10 @@ public function __construct(string $providerName) {
     }
 
 private function fetchUserInfo(string $accessToken): array {
+    if (empty($this->provider['userinfo_url'])) {
+        throw new RuntimeException("OAuth provider is missing required setting: userinfo_url");
+    }
+
     $headers = [
         "Authorization: Bearer {$accessToken}",
         'Accept: application/json',
@@ -83,8 +139,8 @@ private function fetchUserInfo(string $accessToken): array {
     if ($this->providerName === 'github') {
         $emailsJson = $this->httpGet('https://api.github.com/user/emails', $headers);
         $emails = json_decode($emailsJson, true) ?? [];
-		
-		 
+
+
         // First try: primary + verified
         foreach ($emails as $e) {
             if (!empty($e['primary']) && !empty($e['verified'])) {
@@ -111,7 +167,7 @@ private function fetchUserInfo(string $accessToken): array {
 }
 
     private function normalizeUser(array $raw): array {
-        return match($this->providerName) {
+        $user = match($this->providerName) {
             'google' => [
                 'provider'    => 'google',
                 'provider_id' => $raw['sub'],
@@ -133,8 +189,24 @@ private function fetchUserInfo(string $accessToken): array {
                 'name'        => $raw['name'] ?? $raw['login'] ?? null,
                 'avatar_url'  => $raw['avatar_url'] ?? null,
             ],
+            'keycloak' => [
+                'provider'    => 'keycloak',
+                'provider_id' => $raw['sub'] ?? null,
+                'email'       => $raw['email'] ?? null,
+                'name'        => $raw['name'] ?? $raw['preferred_username'] ?? null,
+                'avatar_url'  => $raw['picture'] ?? null,
+            ],
             default => throw new RuntimeException('Unknown provider'),
         };
+
+        if (empty($user['provider_id'])) {
+            throw new RuntimeException("OAuth provider did not return a stable user identifier.");
+        }
+        if (empty($user['email'])) {
+            throw new RuntimeException("OAuth provider did not return an email address.");
+        }
+
+        return $user;
     }
 
     private function httpPost(string $url, string $body, array $headers): string {
@@ -156,5 +228,22 @@ private function fetchUserInfo(string $accessToken): array {
             'ignore_errors' => true,
         ]]);
         return file_get_contents($url, false, $ctx) ?: throw new RuntimeException("HTTP GET to {$url} failed.");
+    }
+
+    private function decodeJwtPayload(string $jwt): array {
+        $parts = explode('.', $jwt);
+        if (count($parts) < 2) {
+            throw new RuntimeException('Invalid OIDC ID token.');
+        }
+
+        $payload = strtr($parts[1], '-_', '+/');
+        $payload .= str_repeat('=', (4 - strlen($payload) % 4) % 4);
+        $json = base64_decode($payload, true);
+        $data = $json === false ? null : json_decode($json, true);
+        if (!is_array($data)) {
+            throw new RuntimeException('Failed to decode OIDC ID token.');
+        }
+
+        return $data;
     }
 }

@@ -8,7 +8,7 @@ A self-hosted TOTP (Time-based One-Time Password) manager built with PHP. Secret
 
 - **Server-side code generation** — secrets are decrypted in memory only at generation time and never sent to the browser
 - **AES-256-GCM encryption** — every secret is encrypted at rest with a unique 96-bit nonce per record
-- **Multiple login methods** — OAuth 2.0 via Google, Microsoft, or GitHub; passwordless magic links via email
+- **Multiple login methods** — OAuth 2.0/OIDC via Google, Microsoft, GitHub, or Keycloak; passwordless magic links via email
 - **Token sharing** — share individual OTP profiles with colleagues by email; they can view codes (or optionally edit settings) without ever seeing the secret
 - **QR code import** — paste or drag an `otpauth://` QR image directly in the browser to auto-fill all token fields
 - **Hide mode** — mask a token's code until clicked; it reveals for 10 seconds then hides itself again
@@ -55,14 +55,22 @@ mysql -u youruser -p totpvault < schema.sql
 
 Edit `config/config.php` and fill in all values. See [Configuration](#configuration) below.
 
-### 4. Set directory permissions
+### 4. Existing installations only: apply migrations
+
+Fresh installs that import `schema.sql` already include every required table. Existing installations should apply any SQL files in `migrations/` that have not been run yet:
+
+```bash
+mysql -u youruser -p totpvault < migrations/001_add_oauth_identities.sql
+```
+
+### 5. Set directory permissions
 
 ```bash
 chmod 750 config/
 
 ```
 
-### 5. Web server
+### 6. Web server
 
 Point your virtual host document root to the project directory. All requests are routed through `index.php` via `.htaccess`. The `config/`, `src/`, `sessions/`, and `templates/` directories are individually protected by `.htaccess` rules that deny direct HTTP access.
 
@@ -140,6 +148,15 @@ return [
             'userinfo_url'  => 'https://api.github.com/user',
         ],
 
+        'keycloak' => [
+            'client_id'     => '',
+            'client_secret' => '',
+            'base_url'      => 'https://keycloak.example.com',
+            'realm'         => 'totpvault',
+            'redirect_uri'  => 'https://yourdomain.com/auth/callback/keycloak',
+            'scope'         => 'openid email profile',
+        ],
+
     ],
 ];
 ```
@@ -161,15 +178,16 @@ No password required. The user enters their email address and receives a time-li
 
 ### OAuth 2.0
 
-One-click sign-in via a third-party identity provider. The OAuth state parameter is verified on callback to prevent CSRF. Three providers are supported out of the box:
+One-click sign-in via a third-party identity provider. The OAuth state parameter is verified on callback to prevent CSRF. Four providers are supported out of the box:
 
 | Provider | Notes |
 |---|---|
 | **Google** | OpenID Connect; fetches name, email, and profile picture |
 | **Microsoft** | Microsoft Graph; supports personal and work/school accounts |
 | **GitHub** | Fetches the primary verified email separately via `/user/emails` since the profile endpoint may return `null` |
+| **Keycloak** | OpenID Connect discovery; maps `sub`, `email`, `name` / `preferred_username`, and optional `picture` claims |
 
-Each provider stores its own `provider_id` column in the `users` table. A user who signs in with Google and later via magic link to the same email address shares the same account row.
+OAuth identities are stored in the `oauth_identities` table as `(provider, provider_id)` pairs linked to `users.id`. A user who signs in with Google and later via magic link to the same email address shares the same account row.
 
 ---
 
@@ -309,77 +327,17 @@ If the invited email does not yet have an account, the share is stored as pendin
 
 ## Database schema
 
-```sql
+The canonical schema lives in `schema.sql`. Docker deployments use `docker/init-db.sql` on first database startup.
 
---
--- Table structure for table `magic_links`
---
+Core tables:
 
-CREATE TABLE `magic_links` (
-  `id` int(11) NOT NULL,
-  `email` varchar(255) NOT NULL,
-  `token_hash` varchar(64) NOT NULL,
-  `used` tinyint(1) NOT NULL DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `expires_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `otp_profiles`
---
-
-CREATE TABLE `otp_profiles` (
-  `id` int(11) NOT NULL,
-  `user_id` int(11) NOT NULL,
-  `name` varchar(255) NOT NULL,
-  `issuer` varchar(255) DEFAULT '',
-  `secret_encrypted` text NOT NULL COMMENT 'AES-256-GCM encrypted base32 secret',
-  `algorithm` enum('SHA1','SHA256','SHA512') DEFAULT 'SHA1',
-  `digits` tinyint(4) DEFAULT 6 COMMENT '6, 8 or 10',
-  `period` smallint(6) DEFAULT 30 COMMENT 'seconds',
-  `color` varchar(7) DEFAULT '#6366f1',
-  `icon` varchar(50) DEFAULT 'shield',
-  `hide_code` tinyint(1) NOT NULL DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `profile_shares`
---
-
-CREATE TABLE `profile_shares` (
-  `id` int(11) NOT NULL,
-  `profile_id` int(11) NOT NULL,
-  `shared_by_user_id` int(11) NOT NULL,
-  `shared_with_email` varchar(255) NOT NULL,
-  `shared_with_user_id` int(11) DEFAULT NULL,
-  `can_edit` tinyint(1) DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `users`
---
-
-CREATE TABLE `users` (
-  `id` int(11) NOT NULL,
-  `email` varchar(255) NOT NULL,
-  `name` varchar(255) DEFAULT NULL,
-  `avatar_url` varchar(500) DEFAULT NULL,
-  `google_id` varchar(255) DEFAULT NULL,
-  `microsoft_id` varchar(255) DEFAULT NULL,
-  `github_id` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-```
+| Table | Purpose |
+|---|---|
+| `users` | Application account profile keyed by email |
+| `oauth_identities` | Generic OAuth/OIDC identities keyed by `(provider, provider_id)` and linked to `users.id` |
+| `magic_links` | Hashed passwordless login tokens |
+| `otp_profiles` | Encrypted TOTP profiles |
+| `profile_shares` | Token sharing grants and pending shares |
 
 ---
 
@@ -388,14 +346,22 @@ CREATE TABLE `users` (
 ```
 ├── config/
 │   ├── config.php            # Your local config — not committed
+│   ├── config.docker.php     # Docker runtime config from environment variables
 │   └── .htaccess             # Deny all HTTP access
+├── docker/
+│   ├── 000-default.conf      # Apache vhost for the app container
+│   ├── init-db.sql           # Docker database initialization schema
+│   └── keycloak/
+│       └── totpvault-realm.json  # Local Keycloak test realm import
 ├── sessions/                 # PHP session files — not committed
+├── migrations/
+│   └── 001_add_oauth_identities.sql  # Upgrade existing installs for generic OAuth identities
 ├── src/
 │   ├── Auth.php              # Session management, OAuth user lookup
 │   ├── Crypto.php            # AES-256-GCM encrypt / decrypt
 │   ├── Database.php          # PDO singleton
 │   ├── MagicLink.php         # Passwordless email login
-│   ├── OAuthP.php            # OAuth 2.0 — Google / Microsoft / GitHub
+│   ├── OAuthP.php            # OAuth 2.0/OIDC — Google / Microsoft / GitHub / Keycloak
 │   ├── Profile.php           # TOTP profile CRUD and sharing
 │   └── TOTP.php              # RFC 6238 code generation and Base32
 ├── templates/
@@ -405,6 +371,10 @@ CREATE TABLE `users` (
 │   └── 404.php
 ├── tools/
 │   └── import-google-auth.php  # Google Authenticator migration QR importer
+├── Dockerfile                # PHP/Apache application image
+├── docker-compose.yml        # App and MariaDB services
+├── docker-compose.keycloak.yml  # Optional local Keycloak test override
+├── Makefile                  # Docker Compose shortcuts
 ├── favicon.png
 ├── index.php                 # Front controller and router
 ├── schema.sql                # Database schema
@@ -437,7 +407,7 @@ open http://localhost:8080
 > - `DB_PASSWORD` — use a strong unique password
 > - `DB_ROOT_PASSWORD` — use a strong unique password
 
-To sign in, configure at least one login method in `.env`: MailerSend for magic links, or Google, Microsoft, or GitHub OAuth credentials.
+To sign in, configure at least one login method in `.env`: MailerSend for magic links, or Google, Microsoft, GitHub, or Keycloak OAuth/OIDC credentials.
 
 ### Makefile shortcuts
 
@@ -469,6 +439,7 @@ docker compose down -v
 |---|---|
 | `totpvault-db-data` | MariaDB database files — survives container rebuilds |
 | `totpvault-sessions` | PHP session files — keeps users logged in across restarts |
+| `totpvault-keycloak-data` | Optional local Keycloak test server data when the `keycloak` profile is enabled |
 
 To list volumes: `docker volume ls | grep totpvault`
 
@@ -482,7 +453,7 @@ To list volumes: `docker volume ls | grep totpvault`
 
 ### OAuth provider setup
 
-Google, Microsoft, and GitHub sign-in require OAuth application credentials from each provider. For local Docker deployment, keep:
+Google, Microsoft, GitHub, and Keycloak sign-in require OAuth/OIDC application credentials from each provider. For local Docker deployment, keep:
 
 ```env
 APP_URL=http://localhost:8080
@@ -495,6 +466,30 @@ Then register these callback URLs with the providers you want to enable:
 | Google | [Google Cloud Console — Credentials](https://console.cloud.google.com/apis/credentials) | `http://localhost:8080/auth/callback/google` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | Microsoft | [Microsoft Entra — App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) | `http://localhost:8080/auth/callback/microsoft` | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 | GitHub | [GitHub Developer Settings — OAuth Apps](https://github.com/settings/developers) | `http://localhost:8080/auth/callback/github` | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
+| Keycloak | Your Keycloak admin console | `http://localhost:8080/auth/callback/keycloak` | `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM` |
+
+For Keycloak, create an OpenID Connect client in your realm, set the valid redirect URI to the callback URL above, and set `KEYCLOAK_BASE_URL` to the Keycloak server root, for example `https://sso.example.com`. TOTPVault uses `KEYCLOAK_BASE_URL` and `KEYCLOAK_REALM` to read the realm's `/.well-known/openid-configuration` discovery document.
+
+The Docker Compose setup includes an optional local Keycloak test server on `http://localhost:8081`. To enable it for local testing, include the Keycloak override file and start Compose with the `keycloak` profile:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.keycloak.yml --profile keycloak up -d --build
+```
+
+The override file supplies local `KEYCLOAK_*` values to the app. On first startup, Keycloak imports `docker/keycloak/totpvault-realm.json` with:
+
+| Setting | Value |
+|---|---|
+| Admin console | `http://localhost:8081` |
+| Admin username | `admin` |
+| Admin password | `admin` |
+| Realm | `totpvault` |
+| Client ID | `totpvault` |
+| Client secret | `totpvault-dev-secret` |
+| Test user | `totpuser` |
+| Test password | `totpuser` |
+
+These defaults are for local testing only. For production, use your own Keycloak deployment, change the client secret, set `KEYCLOAK_BASE_URL` to the public Keycloak URL, and set `KEYCLOAK_INTERNAL_BASE_URL` only if the PHP container needs a different internal network URL for token and userinfo calls.
 
 After updating `.env`, rebuild/restart the app:
 
