@@ -1,0 +1,19 @@
+# Secrets — never commit real configuration
+.env
+
+# PHP sessions
+sessions/*
+!sessions/.htaccess
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if stored locally)
+docker/data/

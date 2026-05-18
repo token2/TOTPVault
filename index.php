@@ -94,7 +94,9 @@ if ($uri === '/auth/magic-request' && $method === 'POST') {
         $body      = "Sign in to OTP Vault\n\nClick this link (expires in 15 minutes):\n{$url}\n\nIf you didn't request this, ignore this email.";
   
  
-        sendMail($email, $subject, $body);
+        if (!sendMail($email, $subject, $body)) {
+            throw new RuntimeException('Email could not be sent. Check your MailerSend configuration.');
+        }
     } catch (RuntimeException $e) {
         redirect('/?error=' . urlencode($e->getMessage()));
     }

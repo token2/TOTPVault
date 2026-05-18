@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Docker files (not needed inside the image)
+docker-compose.yml
+docker-compose.override.yml
+Makefile
+.dockerignore
+.env
+.env.*
+.env.example
+
+# Local configuration may contain production secrets. Docker Compose mounts
+# config/config.docker.php as config/config.php at runtime instead.
+config/config.php
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+SECURITY.md
+LICENSE
+
+# Runtime directories (created at build time or mounted as volumes)
+sessions/*
+!sessions/.htaccess

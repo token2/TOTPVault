@@ -1,0 +1,3 @@
+# Deny all direct HTTP access to templates/
+# Templates are rendered by PHP, not served directly.
+Require all denied

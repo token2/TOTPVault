@@ -411,6 +411,147 @@ CREATE TABLE `users` (
 └── .htaccess                 # Rewrites all requests to index.php
 ```
 
+## Docker Compose Deployment
+
+A complete Docker setup is included for local or self-hosted deployment. It runs the PHP app under Apache and MariaDB in two containers behind a private bridge network.
+
+### Quick start
+
+```bash
+# 1. Clone and enter the project
+git clone https://github.com/token2/TOTPvault.git
+cd TOTPVault
+
+# 2. Create your environment file — then configure a login method
+cp .env.example .env
+
+# 3. Start everything
+docker compose up -d --build
+
+# 4. Open the app
+open http://localhost:8080
+```
+
+> **Production deployment:** Before going live, open `.env` and replace the three values marked `⚠ CHANGE ME`:
+> - `ENCRYPTION_KEY` — generate a fresh one: `php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"`
+> - `DB_PASSWORD` — use a strong unique password
+> - `DB_ROOT_PASSWORD` — use a strong unique password
+
+To sign in, configure at least one login method in `.env`: MailerSend for magic links, or Google, Microsoft, or GitHub OAuth credentials.
+
+### Makefile shortcuts
+
+| Command | Description |
+|---|---|
+| `make up` | Build and start all services |
+| `make down` | Stop all services |
+| `make logs` | Follow application logs |
+| `make rebuild` | Full rebuild (no cache) and restart |
+| `make shell` | Bash shell inside the app container |
+| `make db-shell` | MariaDB shell inside the database container |
+
+### Common commands
+
+```bash
+# View logs
+docker compose logs -f app
+
+# Stop everything
+docker compose down
+
+# Reset database (destroys all data!)
+docker compose down -v
+```
+
+### Persistent data
+
+| Volume | Purpose |
+|---|---|
+| `totpvault-db-data` | MariaDB database files — survives container rebuilds |
+| `totpvault-sessions` | PHP session files — keeps users logged in across restarts |
+
+To list volumes: `docker volume ls | grep totpvault`
+
+### How configuration works
+
+- `config/config.docker.php` is mounted as `config/config.php` inside the container (read-only).
+- All settings are read from environment variables defined in `.env`.
+- OAuth redirect URIs are derived automatically from `APP_URL`.
+- The original `config/config.php` on the host is **not modified** and remains usable for non-Docker deployments.
+- **Never commit `.env` or real secrets to Git.** The `.gitignore` excludes `.env` by default.
+
+### OAuth provider setup
+
+Google, Microsoft, and GitHub sign-in require OAuth application credentials from each provider. For local Docker deployment, keep:
+
+```env
+APP_URL=http://localhost:8080
+```
+
+Then register these callback URLs with the providers you want to enable:
+
+| Provider | Setup page | Local callback URL | `.env` values |
+|---|---|---|---|
+| Google | [Google Cloud Console — Credentials](https://console.cloud.google.com/apis/credentials) | `http://localhost:8080/auth/callback/google` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| Microsoft | [Microsoft Entra — App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) | `http://localhost:8080/auth/callback/microsoft` | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+| GitHub | [GitHub Developer Settings — OAuth Apps](https://github.com/settings/developers) | `http://localhost:8080/auth/callback/github` | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
+
+After updating `.env`, rebuild/restart the app:
+
+```bash
+docker compose up -d --build
+```
+
+For production, replace `http://localhost:8080` with your public `APP_URL` and register matching HTTPS callback URLs, for example `https://yourdomain.com/auth/callback/google`.
+
+### Database initialisation
+
+On first startup, MariaDB automatically runs `docker/init-db.sql` to create all tables. This happens only when the data volume is empty. To re-initialise:
+
+```bash
+docker compose down -v      # removes the data volume
+docker compose up -d --build
+```
+
+### Troubleshooting
+
+**App cannot connect to database**
+- Ensure `DB_HOST=db` in `.env` (must match the Compose service name).
+- Check that the `db` container is healthy: `docker compose ps`
+- Verify `DB_USER`, `DB_PASSWORD`, and `DB_NAME` match between the app and db service.
+- The app waits for the db healthcheck before starting (`depends_on: condition: service_healthy`).
+
+**Access denied for user — after changing `.env` passwords**
+- MariaDB only applies `MYSQL_USER`/`MYSQL_PASSWORD` on a **fresh** (empty) data volume. If the volume already exists with different credentials, the new values are ignored.
+- Fix: destroy the volume and restart so MariaDB re-initialises:
+  ```bash
+  docker compose down -v   # ⚠ deletes all database data
+  docker compose up -d --build
+  ```
+
+
+**Schema not imported**
+- Init scripts only run on a **fresh** data volume. If you changed the schema, reset with `docker compose down -v` first.
+- Check MariaDB logs: `docker compose logs db | head -100`
+
+**.htaccess rewrite not working**
+- Verify `mod_rewrite` is enabled: `docker compose exec app apache2ctl -M | grep rewrite`
+- The Dockerfile enables it automatically. If you see 404 errors for routes like `/dashboard`, check that `AllowOverride All` is set in `docker/000-default.conf`.
+
+**Missing encryption key**
+- `ENCRYPTION_KEY` must be set in `.env`. Generate it with:
+  ```
+  php -r "echo base64_encode(random_bytes(32)) . PHP_EOL;"
+  ```
+- If the key changes after tokens have been stored, existing encrypted secrets become **permanently unreadable**.
+
+**MailerSend not configured**
+- Magic-link login requires a valid `MAILERSEND_KEY`. Without it, email sending will silently fail.
+- Sign up at [mailersend.com](https://www.mailersend.com), verify a domain, and create an API token.
+- Set `MAIL_FROM_EMAIL` to an address on your verified domain.
+
+---
+
 ## Demo
 Check out the live demo here: [Live Demo](https://totp.token2.swiss/)
 
