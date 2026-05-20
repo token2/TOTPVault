@@ -54,7 +54,10 @@ services:
       db:
         condition: service_healthy
     networks:
-      - totpvault-net
+      totpvault-net:
+        aliases:
+          - app
+          - totpvault-app
     healthcheck:
       test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:80/"]
       interval: 30s
@@ -82,7 +85,10 @@ services:
       - ./docker/keycloak/totpvault-realm.json:/opt/keycloak/data/import/totpvault-realm.json:ro
       - totpvault-keycloak-data:/opt/keycloak/data
     networks:
-      - totpvault-net
+      totpvault-net:
+        aliases:
+          - keycloak
+          - totpvault-keycloak
     healthcheck:
       test:
         [
@@ -115,7 +121,10 @@ services:
     # ports:
     #   - "3306:3306"
     networks:
-      - totpvault-net
+      totpvault-net:
+        aliases:
+          - db
+          - totpvault-db
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s

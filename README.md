@@ -515,6 +515,8 @@ docker compose up -d --build
 - Check that the `db` container is healthy: `docker compose ps`
 - Verify `DB_USER`, `DB_PASSWORD`, and `DB_NAME` match between the app and db service.
 - The app waits for the db healthcheck before starting (`depends_on: condition: service_healthy`).
+- If you use Podman Compose and see `getaddrinfo for db failed`, verify service DNS inside the app container: `podman exec totpvault-app getent hosts db`
+- If `db` does not resolve in Podman Compose, set `DB_HOST=totpvault-db`, restart the stack, and use `KEYCLOAK_INTERNAL_BASE_URL=http://totpvault-keycloak:8080` for the optional local Keycloak container.
 
 **Access denied for user — after changing `.env` passwords**
 - MariaDB only applies `MYSQL_USER`/`MYSQL_PASSWORD` on a **fresh** (empty) data volume. If the volume already exists with different credentials, the new values are ignored.
