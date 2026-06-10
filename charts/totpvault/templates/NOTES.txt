@@ -1,0 +1,35 @@
+TOTPVault has been deployed.
+
+Application URL: {{ include "totpvault.appUrl" . }}
+
+{{- if not .Values.ingress.enabled }}
+
+Ingress is disabled. To reach the app from your machine:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "totpvault.fullname" . }} 8080:{{ .Values.service.port }}
+
+then open http://localhost:8080
+{{- end }}
+
+{{- if not .Values.secrets.existingSecret }}
+
+Secrets are managed by the chart in the Secret "{{ include "totpvault.fullname" . }}".
+Any value you did not provide (DB_PASSWORD, ENCRYPTION_KEY{{ if .Values.mariadb.enabled }}, DB_ROOT_PASSWORD{{ end }})
+was generated randomly on first install and is preserved across upgrades.
+
+  ⚠ BACK UP THIS SECRET. ENCRYPTION_KEY must never change — losing or
+    rotating it makes all stored TOTP secrets permanently unreadable:
+
+  kubectl --namespace {{ .Release.Namespace }} get secret {{ include "totpvault.fullname" . }} -o yaml > totpvault-secret-backup.yaml
+{{- end }}
+
+{{- if not .Values.mariadb.enabled }}
+
+Using the external database at {{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}.
+Remember to import schema.sql (and any files in migrations/) into it manually —
+automatic schema initialisation only applies to the bundled MariaDB.
+{{- end }}
+
+To sign in you need at least one login method configured: a MailerSend API key
+(MAILERSEND_KEY) for magic-link email login, or OAuth/OIDC credentials for
+Google, Microsoft, GitHub, or Keycloak. See the chart README for details.

@@ -1,0 +1,19 @@
+{{- if .Values.mariadb.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "totpvault.mariadb.fullname" . }}
+  labels:
+    {{- include "totpvault.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mariadb
+spec:
+  # Headless: used as the StatefulSet serviceName and as DB_HOST for the app.
+  clusterIP: None
+  ports:
+    - port: 3306
+      targetPort: mysql
+      protocol: TCP
+      name: mysql
+  selector:
+    {{- include "totpvault.mariadb.selectorLabels" . | nindent 4 }}
+{{- end }}

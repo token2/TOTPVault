@@ -1,0 +1,17 @@
+{{- if and .Values.persistence.sessions.enabled (not .Values.persistence.sessions.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "totpvault.fullname" . }}-sessions
+  labels:
+    {{- include "totpvault.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.sessions.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.sessions.size }}
+  {{- with .Values.persistence.sessions.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

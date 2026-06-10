@@ -35,6 +35,11 @@ COPY docker/000-default.conf /etc/apache2/sites-available/000-default.conf
 # ── 5. Copy application files ───────────────────────────────────────────────
 COPY . /var/www/html/
 
+# Use the environment-driven config by default so the image runs standalone
+# (e.g. on Kubernetes). Docker Compose bind-mounts config.docker.php over
+# config/config.php at runtime, so this does not change Compose behaviour.
+RUN cp /var/www/html/config/config.docker.php /var/www/html/config/config.php
+
 # ── 6. Create sessions directory with proper permissions ─────────────────────
 # www-data (Apache user) needs write access for PHP session files.
 # The .htaccess inside sessions/ blocks direct HTTP access.

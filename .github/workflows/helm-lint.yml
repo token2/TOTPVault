@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TOTPVault — Lint and render the Helm chart on every change under charts/
+# ─────────────────────────────────────────────────────────────────────────────
+name: Helm chart lint
+
+on:
+  push:
+    branches: [main]
+    paths: ["charts/**"]
+  pull_request:
+    paths: ["charts/**"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: helm lint charts/totpvault
+
+      - name: Render with default values (bundled MariaDB)
+        run: helm template totpvault charts/totpvault > /dev/null
+
+      - name: Render with external database
+        run: |
+          helm template totpvault charts/totpvault \
+            --set mariadb.enabled=false \
+            --set externalDatabase.host=db.example.com > /dev/null
+
+      - name: Render with ingress and TLS
+        run: |
+          helm template totpvault charts/totpvault \
+            --set ingress.enabled=true \
+            --set ingress.hosts[0].host=totp.example.com \
+            --set ingress.hosts[0].paths[0].path=/ \
+            --set ingress.hosts[0].paths[0].pathType=Prefix \
+            --set ingress.tls[0].secretName=totpvault-tls \
+            --set ingress.tls[0].hosts[0]=totp.example.com > /dev/null
+
+      - name: Render with an existing secret
+        run: |
+          helm template totpvault charts/totpvault \
+            --set secrets.existingSecret=my-totpvault-secret > /dev/null
+
+      - name: Render without external database host (must fail)
+        run: |
+          if helm template totpvault charts/totpvault \
+            --set mariadb.enabled=false > /dev/null 2>&1; then
+            echo "Expected rendering to fail without externalDatabase.host" >&2
+            exit 1
+          fi

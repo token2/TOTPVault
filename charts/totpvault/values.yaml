@@ -1,0 +1,204 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TOTPVault — Helm chart values
+#
+# Secrets are NEVER hardcoded here. Provide them either via:
+#   1. secrets.existingSecret — a Secret you manage (recommended for production)
+#   2. --set secrets.encryptionKey=... / a values override file kept out of Git
+#   3. Leave empty — the chart generates random values on first install and
+#      reuses them on upgrades (helm install/upgrade only, not `helm template`).
+#
+# ⚠ ENCRYPTION_KEY must NEVER change once tokens are stored — rotating it makes
+#   all encrypted secrets permanently unreadable. Back up the Secret.
+# ─────────────────────────────────────────────────────────────────────────────
+
+replicaCount: 1
+# NOTE: TOTPVault uses PHP file-based sessions on a PVC. Running more than one
+# replica requires ReadWriteMany storage for the sessions volume, or
+# service.sessionAffinity: ClientIP. See the chart README before scaling.
+
+image:
+  repository: ghcr.io/token2/totpvault
+  # Defaults to the chart appVersion when empty. Pin a tag in production.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Application ──────────────────────────────────────────────────────────────
+app:
+  # Public base URL, no trailing slash (e.g. https://totp.example.com).
+  # When empty it is derived from the first ingress host, falling back to
+  # http://localhost:8080 for port-forward access.
+  url: ""
+
+session:
+  cookieName: totpvault_session
+  lifetime: 2592000 # 30 days in seconds
+
+# ── Mail (MailerSend) — magic-link login ─────────────────────────────────────
+# The API key is a secret: secrets.mailersendKey / MAILERSEND_KEY.
+mail:
+  fromEmail: noreply@localhost
+  fromName: TOTPVault
+
+# ── OAuth / OIDC providers (client IDs are not secret) ───────────────────────
+# Leave a clientId empty to disable that provider.
+# Client secrets go in secrets.* / the existing Secret.
+oauth:
+  google:
+    clientId: ""
+  microsoft:
+    clientId: ""
+  github:
+    clientId: ""
+  keycloak:
+    clientId: ""
+    # Public Keycloak root URL, e.g. https://sso.example.com
+    baseUrl: ""
+    # Optional in-cluster URL for token/userinfo calls, e.g.
+    # http://keycloak.sso.svc.cluster.local:8080
+    internalBaseUrl: ""
+    realm: ""
+    # Defaults to <app.url>/auth/callback/keycloak when empty.
+    redirectUri: ""
+    scope: "openid email profile"
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+secrets:
+  # Name of a pre-created Secret. When set, the chart creates no Secret and the
+  # values below are ignored. The Secret must contain the keys the app reads as
+  # environment variables:
+  #   DB_PASSWORD       (required)
+  #   ENCRYPTION_KEY    (required — base64 of exactly 32 random bytes)
+  #   DB_ROOT_PASSWORD  (required when mariadb.enabled)
+  #   MAILERSEND_KEY, GOOGLE_CLIENT_SECRET, MICROSOFT_CLIENT_SECRET,
+  #   GITHUB_CLIENT_SECRET, KEYCLOAK_CLIENT_SECRET  (optional)
+  existingSecret: ""
+
+  # Used only when existingSecret is empty. Empty required values are randomly
+  # generated at install time and preserved across upgrades.
+  dbPassword: ""
+  dbRootPassword: ""
+  encryptionKey: ""
+  mailersendKey: ""
+  googleClientSecret: ""
+  microsoftClientSecret: ""
+  githubClientSecret: ""
+  keycloakClientSecret: ""
+
+# ── Internal MariaDB ─────────────────────────────────────────────────────────
+mariadb:
+  # Deploy a MariaDB StatefulSet. Set to false to use externalDatabase instead.
+  enabled: true
+  image:
+    repository: mariadb
+    tag: "10.11"
+    pullPolicy: IfNotPresent
+  auth:
+    database: totpvault
+    username: totpvault
+  persistence:
+    size: 8Gi
+    storageClass: ""
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── External database (used when mariadb.enabled is false) ──────────────────
+# Import schema.sql (and any migrations/) into the database yourself — the
+# automatic schema initialisation only applies to the bundled MariaDB.
+# The password always comes from the DB_PASSWORD secret key.
+externalDatabase:
+  host: ""
+  port: 3306
+  database: totpvault
+  username: totpvault
+
+# ── Persistence ──────────────────────────────────────────────────────────────
+persistence:
+  # PHP session files — keeps users logged in across pod restarts.
+  sessions:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+
+# ── Networking ───────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 80
+  # Set to ClientIP when running multiple replicas without RWX session storage.
+  sessionAffinity: None
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: totpvault.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: totpvault-tls
+    #   hosts:
+    #     - totpvault.example.com
+
+# ── Pod settings ─────────────────────────────────────────────────────────────
+podAnnotations: {}
+podLabels: {}
+
+# Apache in the official php:apache image starts as root and drops worker
+# processes to www-data, so these stay permissive by default. See the chart
+# README for hardening options. fsGroup 33 (www-data) makes the sessions
+# volume writable by PHP.
+podSecurityContext:
+  fsGroup: 33
+securityContext: {}
+
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   memory: 512Mi
+
+# The app has no dedicated health endpoint; / serves the landing page and
+# fails while the database is unreachable, which gates traffic correctly.
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 6
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+# Extra environment variables for the app container.
+extraEnv: []
+  # - name: APP_ENV
+  #   value: production
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
