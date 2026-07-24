@@ -1,0 +1,13 @@
+{{- if .Values.mariadb.enabled }}
+{{- /* files/init-db.sql is a copy of docker/init-db.sql — keep them in sync. */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "totpvault.mariadb.fullname" . }}-init
+  labels:
+    {{- include "totpvault.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mariadb
+data:
+  01-schema.sql: |
+{{ .Files.Get "files/init-db.sql" | indent 4 }}
+{{- end }}

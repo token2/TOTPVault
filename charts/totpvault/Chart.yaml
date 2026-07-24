@@ -1,0 +1,29 @@
+apiVersion: v2
+name: totpvault
+description: >-
+  Self-hosted TOTP (Time-based One-Time Password) manager. Secrets are
+  AES-256-GCM encrypted server-side and never transmitted to the client.
+type: application
+
+# Chart version — bump on every chart change (SemVer).
+version: 0.1.0
+
+# Version of the TOTPVault application image deployed by default.
+# The project does not publish versioned releases yet, so this tracks the
+# "latest" image published from main by .github/workflows/docker-publish.yml.
+# Pin image.tag in values for reproducible production deployments.
+appVersion: "latest"
+
+home: https://github.com/token2/TOTPVault
+sources:
+  - https://github.com/token2/TOTPVault
+keywords:
+  - totp
+  - 2fa
+  - mfa
+  - otp
+  - authenticator
+  - security
+maintainers:
+  - name: TOTPVault contributors
+    url: https://github.com/token2/TOTPVault

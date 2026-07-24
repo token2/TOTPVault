@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "totpvault.fullname" . }}
+  labels:
+    {{- include "totpvault.labels" . | nindent 4 }}
+data:
+  APP_URL: {{ include "totpvault.appUrl" . | quote }}
+  DB_HOST: {{ include "totpvault.databaseHost" . | quote }}
+  DB_PORT: {{ include "totpvault.databasePort" . | quote }}
+  DB_NAME: {{ include "totpvault.databaseName" . | quote }}
+  DB_USER: {{ include "totpvault.databaseUser" . | quote }}
+  SESSION_COOKIE_NAME: {{ .Values.session.cookieName | quote }}
+  SESSION_LIFETIME: {{ .Values.session.lifetime | quote }}
+  MAIL_FROM_EMAIL: {{ .Values.mail.fromEmail | quote }}
+  MAIL_FROM_NAME: {{ .Values.mail.fromName | quote }}
+  {{- with .Values.oauth.google.clientId }}
+  GOOGLE_CLIENT_ID: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.microsoft.clientId }}
+  MICROSOFT_CLIENT_ID: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.github.clientId }}
+  GITHUB_CLIENT_ID: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.keycloak.clientId }}
+  KEYCLOAK_CLIENT_ID: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.keycloak.baseUrl }}
+  KEYCLOAK_BASE_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.keycloak.internalBaseUrl }}
+  KEYCLOAK_INTERNAL_BASE_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.keycloak.realm }}
+  KEYCLOAK_REALM: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.keycloak.redirectUri }}
+  KEYCLOAK_REDIRECT_URI: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.oauth.keycloak.scope }}
+  KEYCLOAK_SCOPE: {{ . | quote }}
+  {{- end }}

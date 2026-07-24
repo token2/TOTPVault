@@ -549,6 +549,18 @@ docker compose up -d --build
 
 ---
 
+## Kubernetes (Helm)
+
+An official Helm chart lives in [`charts/totpvault/`](charts/totpvault/) for Kubernetes-native deployments. It supports a bundled MariaDB StatefulSet or an external database, ingress with TLS, persistent sessions, and secret management via an existing Secret or chart-generated values.
+
+```bash
+helm install totpvault ./charts/totpvault -n totpvault --create-namespace
+```
+
+The application image is published automatically to `ghcr.io/token2/totpvault` by GitHub Actions. See the [chart README](charts/totpvault/README.md) for required values, secrets, ingress/TLS setup, and upgrade considerations. Docker Compose (above) remains the recommended path for local development and simple single-host deployments.
+
+---
+
 ## Demo
 Check out the live demo here: [Live Demo](https://totp.token2.swiss/)
 
